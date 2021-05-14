@@ -1,0 +1,158 @@
+#!/usr/bin/env python
+
+# WS client example
+
+import asyncio
+import websockets
+import base64
+import json
+import asyncio
+from websockets import connect
+################################   SUM OF THE ELEMENTS  LIST ################
+async def listSum(list1):
+  s1=0
+  for i in range(len(list1)):
+     s1 = s1+ int(list1[i],2)
+  return s1
+################   METHOD THAT CONCAT THE ELEMENTS OF LIST BY TWICE   ################
+async def concat(list):
+  list1= []
+  length = (len(list)+1)//2
+  print(length)
+  for i in range(length):
+         list1.append(list[i]+list[i+1])
+  return(list1)
+#############   METHOD THAT CHANGE ALL CHARACTER TO BINARY ELEMENTS   ################
+async def convert( Payload:bytearray):
+  a_string = Payload
+  byte_array = bytearray(a_string, "utf8")
+  list = []
+  s = 0
+  for byte in byte_array:
+    #convert an element in binary
+     binary_representation = '{0:b}'.format(byte).zfill(8)
+    #add an element to the list
+     list.append(binary_representation)
+     s= s+ int(binary_representation)
+     list.append(binary_representation)
+  print("===========the peload list ===============")
+  print( '{0:b}'.format(s).zfill(16))
+  print(f"{list}")
+
+  # concatinate  the elements of the list by twice
+  list1 = await concat(list)
+ 
+  return list1
+ 
+  
+##################################################################################
+async def changeZeroOne(sum):
+ s=''
+ for i in range(len(sum)):
+  
+  if sum[i]=='0':
+    s= s+'1'
+  else:
+   s= s+'0' 
+ return(s)  
+##########################################   COMPUTE CHECKSUM METHOD ##############
+  
+async def compute_checksum(sourceport: int, destport: int,size: int,Payload: bytearray):
+  #convert source port to binary
+  sourceport = '{0:b}'.format(sourceport).zfill(16)
+  #convert destination port to binary
+  destport = '{0:b}'.format(destport).zfill(16)
+  #convert the packet size to binary
+  size = '{0:b}'.format(size).zfill(16)
+  #convert the checksum of packet to binary
+  checksum = '{0:b}'.format(16718).zfill(16)
+  
+  print("--------------------------",checksum)
+    
+  print(f"{'the elements of the peaload list combined to obtain 16 bits'}")
+  
+  list1 =  await convert( Payload)
+
+  sum= await listSum(list1)
+  print('sum of elements of the list ')
+  print('{0:b}'.format(sum).zfill(16))
+
+  print(f"{'----------------------------------------------------------'}") 
+  print(f"source_port ={sourceport}")
+  print(f"dest_port ={destport}")
+  print(f"length = {size}")
+  print(f"{'----------------------------------------------------'}")
+  #sum  of source_port, dest_port, packet size and sum of payload elements
+  sum =  '{0:b}'.format(int(sourceport,2) + int(destport,2)+ int(size,2)+sum).zfill(16)
+  print('chcksum sum====',sum)
+  print(f"{'-----------------------------------------------------------'}")
+  
+  dz = await changeZeroOne(sum)
+ 
+ 
+  print(f"{'-----------------------------------------------------------'}")
+  return(dz)
+############################ RECEVE AND DECODE MESSAGE METHOD #########################################
+  
+async def recv_and_decode_packet(websocket,path):
+    #Messages received from the server
+    packet = await websocket.recv()
+    serverpacket = base64.b64decode(packet)
+    
+    #packet size
+    Pay =  serverpacket[8:]
+    
+    #binary Payload 
+    Payload=  Pay.decode('utf-8')
+    size = len(serverpacket)
+    
+    sourceport =int.from_bytes(serverpacket[:2],'little')
+    destport = int.from_bytes(serverpacket[2:4],'little')
+    Checksum =int.from_bytes(serverpacket[6:8],'little')
+    print(f"{'------------------------------------------------------------'}")
+     #method that calculat the checksum of source port dest port size and payload
+    calculChecksum= await compute_checksum(sourceport,destport,size,Payload)
+    print(f"{'------------------------------------------------------------'}")
+   
+    print(f"Base64:{packet}")
+    print(f"ServerSent:{serverpacket}")
+    print(f"{'------------------------------------------------------------'}")
+    print(f"{'Decoded Packet'}")
+    print(f"Source Port: {sourceport}")
+    print(f"Dest Port: {destport}")
+    print(f"Data Length:{size}")
+    print(f"Checksum: {Checksum}")
+    print(f"Payload:{Payload}")
+    print(f"{'-------------------------------------------------------------'}")
+     
+    print('change all 0 by one',calculChecksum,'xxxxxxxxxxx')
+    if (calculChecksum ==Checksum):
+      return True
+    else:
+      return False
+    
+##################################################################################################
+async def send_packet(websocket,sourceport,destport,size,payload):
+  
+  time = 'sofiene'
+  print(time)
+  await websocket.send(time)
+  
+################################################################################
+	 
+async def  main():
+  async with connect(uri) as websocket:
+    
+    await recv_and_decode_packet(websocket)
+     
+    while True:
+     await send_packet(websocket,0,542,'1111')
+     await recv_and_decode_packet(websocket)
+     time.sleep(1)
+
+start_server = websockets.serve(recv_and_decode_packet, "localhost", 5612)
+loop = asyncio.get_event_loop()
+loop.run_until_complete(start_server)
+asyncio.get_event_loop().run_forever()
+
+
